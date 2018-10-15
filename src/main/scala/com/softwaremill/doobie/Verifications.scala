@@ -23,6 +23,18 @@ class Verifications extends CustomMeta {
       .option
   }
 
+  def findVerificationStats(): ConnectionIO[List[UserVerificationStats]] = {
+    sql"select u.id, v.status, v.verification_type, count(*) as count from verifications v join users u on v.user_id = u.id group by u.id, v.verification_type, v.status"
+      .query[(Id, VerificationStatus, Long)]
+      .to[List]
+      .map { rows =>
+        rows
+          .groupBy(_._1)
+          .map { case (k, v) => UserVerificationStats(k, v.map(s => (s._2, s._3)).toMap) }
+          .toList
+      }
+  }
+
 }
 
 object Verifications {
