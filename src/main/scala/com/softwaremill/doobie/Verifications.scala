@@ -11,10 +11,10 @@ import doobie.util.update.Update
 
 class Verifications extends CustomMeta {
 
-  def add(userId: Id, status: VerificationStatus, createdAt: ZonedDateTime): ConnectionIO[Long] = {
+  def add(verification: NewVerificationData): ConnectionIO[Long] = {
     Update[(Id, VerificationStatus, ZonedDateTime)](
       "insert into verifications (user_id, status, verification_type, created_at) values (?, ?, ?, ?)")
-      .withUniqueGeneratedKeys[Long]("id")((userId, status, createdAt))
+      .withUniqueGeneratedKeys[Long]("id")(NewVerificationData.unapply(verification).get)
   }
 
   def findById(verificationId: Long): ConnectionIO[Option[Verification[_]]] = {
