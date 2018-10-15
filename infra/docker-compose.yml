@@ -1,0 +1,11 @@
+version: '3'
+services:
+  doobie:
+    image: postgres
+    container_name: doobie
+    ports:
+    - "5432:5432"
+    environment:
+      POSTGRES_USER: doobie
+      POSTGRES_PASSWORD: doobie123
+      POSTGRES_DB: doobie
