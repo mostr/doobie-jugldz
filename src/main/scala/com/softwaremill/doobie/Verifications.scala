@@ -7,22 +7,16 @@ import com.softwaremill.doobie.model._
 import com.softwaremill.doobie.sample.model.Id
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
+import doobie.util.update.Update
 
 class Verifications extends CustomMeta {
 
-  private type VerificationsRow = (Long, Id, String, String, ZonedDateTime)
-
-  private val IdVerificationType = "ID"
-
-  private val PoRVerificationType = "POR"
+  private type VerificationsRow = (Long, Id, VerificationStatus, ZonedDateTime)
 
   def add(userId: Id, status: VerificationStatus, createdAt: ZonedDateTime): ConnectionIO[Long] = {
-    val verificationType = status match {
-      case _: IdVerificationStatus  => IdVerificationType
-      case _: PoRVerificationStatus => PoRVerificationType
-    }
-    sql"insert into verifications (user_id, status, verification_type, created_at) values ($userId, ${status.value}, $verificationType, $createdAt)".update
-      .withUniqueGeneratedKeys[Long]("id")
+    Update[(Id, VerificationStatus, ZonedDateTime)](
+      "insert into verifications (user_id, status, verification_type, created_at) values (?, ?, ?, ?)")
+      .withUniqueGeneratedKeys[Long]("id")((userId, status, createdAt))
   }
 
   def findById(verificationId: Long): ConnectionIO[Option[Verification[_]]] = {
@@ -30,12 +24,8 @@ class Verifications extends CustomMeta {
       .query[VerificationsRow]
       .option
       .map(_.map {
-        case (id, userId, status, IdVerificationType, createdAt) =>
-          IdVerification(id, userId, IdVerificationStatus.of(status), createdAt)
-        case (id, userId, status, PoRVerificationType, createdAt) =>
-          PoRVerification(id, userId, PoRVerificationStatus.of(status), createdAt)
-        case unknown =>
-          throw new IllegalStateException(s"Cannot build verification record out of $unknown")
+        case (id, userId, status: IdVerificationStatus, createdAt)  => IdVerification(id, userId, status, createdAt)
+        case (id, userId, status: PoRVerificationStatus, createdAt) => PoRVerification(id, userId, status, createdAt)
       })
   }
 
