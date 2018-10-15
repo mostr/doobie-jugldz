@@ -11,8 +11,6 @@ import doobie.util.update.Update
 
 class Verifications extends CustomMeta {
 
-  private type VerificationsRow = (Long, Id, VerificationStatus, ZonedDateTime)
-
   def add(userId: Id, status: VerificationStatus, createdAt: ZonedDateTime): ConnectionIO[Long] = {
     Update[(Id, VerificationStatus, ZonedDateTime)](
       "insert into verifications (user_id, status, verification_type, created_at) values (?, ?, ?, ?)")
@@ -21,12 +19,12 @@ class Verifications extends CustomMeta {
 
   def findById(verificationId: Long): ConnectionIO[Option[Verification[_]]] = {
     sql"select * from verifications where id = $verificationId"
-      .query[VerificationsRow]
+      .query[Verification[_]]
       .option
-      .map(_.map {
-        case (id, userId, status: IdVerificationStatus, createdAt)  => IdVerification(id, userId, status, createdAt)
-        case (id, userId, status: PoRVerificationStatus, createdAt) => PoRVerification(id, userId, status, createdAt)
-      })
   }
 
+}
+
+object Verifications {
+  type VerificationsRow = (Long, Id, VerificationStatus, ZonedDateTime)
 }
