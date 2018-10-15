@@ -14,7 +14,7 @@ INSERT INTO users
 VALUES ('b6d6b4cd-da9f-4341-87b9-0e1224febb93', 'bob@example.com', 'pwdhash', 'promo123', '2000-11-22');
 
 CREATE TABLE verifications (
-  id                UUID PRIMARY KEY,
+  id                SERIAL PRIMARY KEY,
   user_id           UUID        NOT NULL REFERENCES users (id),
   status            VARCHAR     NOT NULL,
   verification_type VARCHAR     NOT NULL,
