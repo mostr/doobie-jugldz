@@ -4,10 +4,7 @@ import java.time.LocalDate
 
 import cats.effect.IO
 import com.softwaremill.doobie.infra.{ Clock, Database, IdGen, UTCClock }
-import com.softwaremill.doobie.model.IdVerificationStatus.{ IdFailure, IdSuccess }
-import com.softwaremill.doobie.model.PoRVerificationStatus.{ PoRExpired, PoRFailure, PoRSuccess }
-import com.softwaremill.doobie.model.{ NewVerificationData, User }
-import doobie.free.connection.ConnectionIO
+import com.softwaremill.doobie.model.{ User, UserError }
 import doobie.implicits._
 
 object Main extends App {
@@ -18,22 +15,11 @@ object Main extends App {
   val clock: Clock      = UTCClock
   val xa                = Database.connect[IO]()
 
-  val tommy                   = User(idGen.newId(), "tommy@example.com", "supersecret", None, LocalDate.of(1982, 8, 19))
-  val cio: ConnectionIO[Unit] = usersRepo.add(tommy)
-  val eff: IO[Unit]           = cio.transact(xa)
-  // finally run it
-  eff.unsafeRunSync()
+  val tommy = User(idGen.newId(), "tommy@example.com", "supersecret", None, LocalDate.of(1982, 8, 19))
 
-  List(
-    NewVerificationData(tommy.id, IdSuccess, clock.now()),
-    NewVerificationData(tommy.id, IdFailure, clock.now()),
-    NewVerificationData(tommy.id, IdFailure, clock.now()),
-    NewVerificationData(tommy.id, PoRFailure, clock.now()),
-    NewVerificationData(tommy.id, PoRSuccess, clock.now()),
-    NewVerificationData(tommy.id, PoRExpired, clock.now()),
-    NewVerificationData(tommy.id, PoRExpired, clock.now())
-  ).foreach(a => verificationsRepo.add(a.userId, a.status, a.createdAt).transact(xa).unsafeRunSync())
+  val addTommyIO: IO[Either[UserError, Unit]] = usersRepo.safeAdd(tommy).transact(xa)
 
-  println(verificationsRepo.findVerificationStats().transact(xa).unsafeRunSync())
+  println(s"Add Tommy 1st try: ${addTommyIO.unsafeRunSync()}")
+  println(s"Add Tommy 2nd try: ${addTommyIO.unsafeRunSync()}")
 
 }
