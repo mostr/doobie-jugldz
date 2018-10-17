@@ -5,10 +5,10 @@ import java.time.LocalDate
 import cats.effect.IO
 import cats.implicits._
 import com.softwaremill.doobie.infra.{ Clock, Database, IdGen, UTCClock }
-import com.softwaremill.doobie.model.IdVerificationStatus.IdSuccess
-import com.softwaremill.doobie.model.PoRVerificationStatus.PoRExpired
+import com.softwaremill.doobie.model.IdVerificationStatus.{ IdFailure, IdSuccess }
+import com.softwaremill.doobie.model.PoRVerificationStatus.{ PoRExpired, PoRSuccess }
 import com.softwaremill.doobie.model.{ NewVerificationData, User }
-import doobie.free.connection.ConnectionIO
+import doobie.free.connection
 import doobie.implicits._
 
 object Main extends App {
@@ -19,27 +19,28 @@ object Main extends App {
   val clock: Clock      = UTCClock
   val xa                = Database.connect[IO]()
 
-  val tommy               = User(idGen.newId(), "tommy@example.com", "supersecret", None, LocalDate.of(1982, 8, 19))
-  val validVerification   = NewVerificationData(tommy.id, IdSuccess, clock.now())
-  val invalidVerification = NewVerificationData(idGen.newId(), PoRExpired, clock.now()) // unknown user id
+  val tommy = User(idGen.newId(), "tommy@example.com", "supersecret", None, LocalDate.of(1982, 8, 19))
 
+  val verifications = List(
+    NewVerificationData(tommy.id, IdSuccess, clock.now()),
+    NewVerificationData(tommy.id, PoRExpired, clock.now()),
+    NewVerificationData(tommy.id, PoRSuccess, clock.now()),
+    NewVerificationData(tommy.id, PoRExpired, clock.now()),
+    NewVerificationData(tommy.id, IdFailure, clock.now())
+  )
   val addTommy         = usersRepo.add(tommy)
-  val addVerifications = List(validVerification, invalidVerification).map(verificationsRepo.add).sequence
+  val addVerifications = verifications.map(verificationsRepo.add).sequence
 
-  val transaction: ConnectionIO[Unit] = for {
-    _ <- addTommy
-    _ <- addVerifications
-  } yield {
-    println("All good")
+  val transaction = addTommy.flatMap { _ =>
+    if (tommy.email.endsWith("pl")) {
+      println("Rolling back")
+      connection.rollback
+    } else {
+      addVerifications.map(_ => ())
+    }
   }
 
-  transaction
-    .transact(xa)
-    .attempt
-    .map(_.left.map { err =>
-      println("Ooopsie, got error")
-      err.printStackTrace()
-    })
-    .unsafeRunSync()
+  // run it
+  transaction.transact(xa).unsafeRunSync()
 
 }
