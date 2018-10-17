@@ -2,6 +2,7 @@ package com.softwaremill.doobie
 
 import java.time.ZonedDateTime
 
+import cats.data.NonEmptyList
 import com.softwaremill.doobie.infra.CustomMeta
 import com.softwaremill.doobie.model._
 import com.softwaremill.doobie.sample.model.Id
@@ -33,6 +34,12 @@ class Verifications extends CustomMeta {
           .map { case (k, v) => UserVerificationStats(k, v.map(s => (s._2, s._3)).toMap) }
           .toList
       }
+  }
+
+  def findWithStatuses(statuses: NonEmptyList[VerificationStatus]): doobie.ConnectionIO[List[Verification[_]]] = {
+    val inStatusesFrag = doobie.Fragments.in(fr"status", statuses.map(_.value))
+    val select         = sql"select * from verifications where " ++ inStatusesFrag
+    select.query[Verification[_]].to[List]
   }
 
 }

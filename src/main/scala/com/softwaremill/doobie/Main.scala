@@ -2,13 +2,14 @@ package com.softwaremill.doobie
 
 import java.time.LocalDate
 
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import com.softwaremill.doobie.infra.{ Clock, Database, IdGen, UTCClock }
 import com.softwaremill.doobie.model.IdVerificationStatus.{ IdFailure, IdSuccess }
 import com.softwaremill.doobie.model.PoRVerificationStatus.{ PoRExpired, PoRSuccess }
 import com.softwaremill.doobie.model.{ NewVerificationData, User }
-import doobie.free.connection
+import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 
 object Main extends App {
@@ -31,16 +32,18 @@ object Main extends App {
   val addTommy         = usersRepo.add(tommy)
   val addVerifications = verifications.map(verificationsRepo.add).sequence
 
-  val transaction = addTommy.flatMap { _ =>
-    if (tommy.email.endsWith("pl")) {
-      println("Rolling back")
-      connection.rollback
-    } else {
-      addVerifications.map(_ => ())
-    }
+  val transaction: ConnectionIO[Unit] = for {
+    _ <- addTommy
+    _ <- addVerifications
+  } yield {
+    println("All good")
   }
 
-  // run it
+  // save data
   transaction.transact(xa).unsafeRunSync()
+
+  // load
+  val requestedStatuses = NonEmptyList.fromListUnsafe(List(IdSuccess, PoRSuccess))
+  println(verificationsRepo.findWithStatuses(requestedStatuses).transact(xa).unsafeRunSync())
 
 }
